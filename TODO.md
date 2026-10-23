@@ -6,7 +6,12 @@
 - [ ] Alte Maße aus der Claude-Version exportieren und hier importieren
 
 ## Ideen für später
-- (frei)
+### Möbel aus Shops (IKEA, XXXLutz, Poco …)
+Keiner der Shops hat eine öffentliche Schnittstelle für Produktdaten. Deshalb lieber Lösungen, die mit jedem Shop funktionieren:
+- [ ] Produktlink am Möbel speichern, Antippen öffnet die Shopseite
+- [ ] Raumplaner im Android-Teilen-Menü: aus der Shop-App teilen → Möbel mit Name und Link wird angelegt; mitkopierte Maßangaben werden automatisch erkannt
+- [ ] Vorlagen-Katalog mit gängigen Klassikern (z. B. PAX, MALM, KALLAX) und geprüften Standardmaßen
+- [ ] Eher nicht: automatischer Import per Link – bräuchte einen eigenen Server, nutzt inoffizielle Schnittstellen und kann jederzeit kaputtgehen
 
 ## Erledigt
 - [x] Auto-Anordnung als neue Variante „Vorschlag“, mit „Anderen Vorschlag zeigen“

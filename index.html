@@ -1,0 +1,575 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Raumplaner</title>
+<meta name="theme-color" content="#F4F6F5">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E4E9E8; --floor:#FBFCFB; --ink:#22282C; --muted:#5E6A6F; --wall:#2C3338;
+  --grid:#CED6D4; --grid2:#B5C0BD; --accent:#1F5FBF; --accent-ink:#fff; --warn:#C8412F;
+  --panel:#F4F6F5; --line:#D5DCDA; --field:#fff;
+  --f:'Barlow',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --fc:'Barlow Condensed','Arial Narrow',system-ui,sans-serif;
+  box-sizing:border-box; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --paper:#171B1E; --floor:#252B2F; --ink:#E4E9E7; --muted:#98A4A8; --wall:#D3DAD7;
+  --grid:#232A2E; --grid2:#30393E; --accent:#6E9FEF; --accent-ink:#0E1A2E; --warn:#EE6B58;
+  --panel:#1D2225; --line:#30383C; --field:#161A1C;}}
+:root[data-theme="dark"]{
+  --paper:#171B1E; --floor:#252B2F; --ink:#E4E9E7; --muted:#98A4A8; --wall:#D3DAD7;
+  --grid:#232A2E; --grid2:#30393E; --accent:#6E9FEF; --accent-ink:#0E1A2E; --warn:#EE6B58;
+  --panel:#1D2225; --line:#30383C; --field:#161A1C;}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--panel);color:var(--ink);font:15px/1.4 var(--f);display:flex;flex-direction:column;overflow:hidden;-webkit-tap-highlight-color:transparent}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+header{display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);overflow-x:auto;flex:0 0 auto}
+.btn{min-height:40px;padding:0 12px;border:1px solid var(--line);background:var(--field);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.icon{width:40px;padding:0}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:600}
+.btn.danger{color:var(--warn)}
+.btn:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+select.btn{padding-right:8px;max-width:180px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:0 0 auto}
+.seg button{min-height:40px;padding:0 14px;border:0;background:var(--field)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel);font-weight:600}
+#info{font-family:var(--fc);font-size:15px;color:var(--muted);margin-left:auto;white-space:nowrap;padding:0 4px}
+main{flex:1;display:flex;min-height:0}
+#stage{flex:1;position:relative;background:var(--paper);min-width:0;overflow:hidden}
+#svg{position:absolute;inset:0;width:100%;height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
+#panel{width:330px;flex:0 0 auto;border-left:1px solid var(--line);overflow-y:auto;padding:14px 14px 24px}
+@media (max-width:820px){main{flex-direction:column}#panel{width:auto;height:42%;border-left:0;border-top:1px solid var(--line)}}
+#variants{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100% - 20px)}
+#variants button{min-height:34px;padding:0 12px;border-radius:17px;border:1px solid var(--line);background:var(--floor);font-size:14px}
+#variants button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent);font-weight:600}
+h2{font-size:17px;font-weight:600;margin:0 0 10px}
+h3{font-size:14px;font-weight:600;margin:18px 0 8px;color:var(--muted)}
+p.hint{color:var(--muted);margin:0 0 12px;font-size:14px}
+.row{display:flex;gap:8px;align-items:end;margin-bottom:10px;flex-wrap:wrap}
+.row.end{justify-content:flex-end}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);flex:1;min-width:0}
+label.f input,label.f select{min-height:40px;border:1px solid var(--line);border-radius:8px;background:var(--field);padding:0 10px;width:100%;color:var(--ink);font-size:16px}
+.unit{position:relative}.unit::after{content:attr(data-u);position:absolute;right:10px;bottom:10px;font-size:13px;color:var(--muted);pointer-events:none}
+.unit input{padding-right:34px!important}
+.swatches{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.sw{width:34px;height:34px;border-radius:50%;border:2px solid transparent;padding:0;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.sw[aria-pressed="true"]{border-color:var(--ink);outline:2px solid var(--floor);outline-offset:-4px}
+input[type=color].sw{background:none;overflow:hidden;cursor:pointer}
+.lib{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
+.lib li{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
+.lib .chip{width:28px;height:20px;border-radius:4px;flex:0 0 auto;box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
+.lib .nm{flex:1;min-width:0}
+.lib .nm b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lib .nm small{font-family:var(--fc);font-size:14px;color:var(--muted)}
+.warnbox{border-left:3px solid var(--warn);padding:6px 10px;margin:0 0 12px;font-size:14px;color:var(--warn);background:color-mix(in srgb,var(--warn) 8%,transparent)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#modal{position:fixed;inset:0;background:rgba(10,14,16,.45);display:none;align-items:center;justify-content:center;padding:16px;z-index:10}
+#modal.open{display:flex}
+.sheet{background:var(--panel);border-radius:12px;padding:18px;width:min(420px,100%);max-height:90%;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+.sheet textarea{width:100%;height:160px;font:12px/1.3 ui-monospace,monospace;background:var(--field);color:var(--ink);border:1px solid var(--line);border-radius:8px}
+.stack{display:flex;flex-direction:column;gap:8px}
+.stack .btn{justify-content:flex-start}
+#sync{position:relative}
+#sync::after{content:'';position:absolute;right:6px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--muted);box-shadow:0 0 0 2px var(--field)}
+#sync[data-st=off]::after{display:none}
+#sync[data-st=ok]::after{background:#2E8B57}
+#sync[data-st=wait]::after,#sync[data-st=busy]::after{background:#D69E2E}
+#sync[data-st=err]::after{background:var(--warn)}
+.msg{font-size:14px;color:var(--warn);min-height:1.2em;margin:4px 0 0}
+.sheet ol{padding-left:20px;margin:0 0 12px;font-size:14px;color:var(--muted)}
+.sheet ol li{margin-bottom:4px}
+.sheet a{color:var(--accent)}
+/* svg */
+.gl{stroke:var(--grid);stroke-width:1}
+.gl.m{stroke:var(--grid2)}
+.wall{fill:none;stroke:var(--wall);stroke-width:12;stroke-linejoin:miter}
+.floor{fill:var(--floor)}
+.gap{fill:var(--floor)}
+.dline{stroke:var(--wall);stroke-width:1.6;fill:none}
+.darc{stroke:var(--wall);stroke-width:1;fill:none;stroke-dasharray:4 3}
+.win{stroke:var(--wall);stroke-width:1.2}
+.it rect{stroke-width:1.2}
+.it.warn rect{stroke:var(--warn)!important;stroke-width:2.4;stroke-dasharray:6 4}
+.it text{fill:#1b1f22;font-family:var(--f);pointer-events:none}
+.ghost{opacity:.4;pointer-events:none}
+.sel{fill:none;stroke:var(--accent);stroke-width:2}
+.handle{fill:var(--floor);stroke:var(--accent);stroke-width:2}
+.dim{stroke:var(--accent);stroke-width:1.2}
+.dimt{fill:var(--accent);font-family:var(--fc);font-weight:600}
+.dimbg{fill:var(--paper);opacity:.9}
+.wl{fill:var(--muted);font-family:var(--fc);font-weight:500}
+.wl.on{fill:var(--accent)}
+.hit{stroke:transparent;stroke-width:28;fill:none}
+.wsel{stroke:var(--accent);stroke-width:4}
+.vtx{fill:var(--floor);stroke:var(--ink);stroke-width:2}
+.vtx.on{fill:var(--accent);stroke:var(--accent)}
+.opsel{stroke:var(--accent);stroke-width:5;stroke-opacity:.5}
+</style>
+</head>
+<body>
+<header>
+  <select id="roomSel" class="btn" aria-label="Raum wählen"></select>
+  <button class="btn" id="roomMenu" aria-label="Raum verwalten">Raum</button>
+  <div class="seg" role="group" aria-label="Modus">
+    <button data-mode="furn">Möbel</button><button data-mode="plan">Grundriss</button>
+  </div>
+  <button class="btn icon" id="undo" aria-label="Rückgängig"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+  <button class="btn icon" id="redo" aria-label="Wiederholen"><svg viewBox="0 0 24 24"><path d="m15 14 5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+  <button class="btn icon" id="fit" aria-label="Raum einpassen"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+  <span id="info"></span>
+  <button class="btn icon" id="sync" data-st="off" aria-label="Speicherort"><svg viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.5 8.5z"/></svg></button>
+  <button class="btn icon" id="menu" aria-label="Einstellungen und Daten"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+</header>
+<main>
+  <div id="stage">
+    <svg id="svg"><g id="world"></g></svg>
+    <div id="variants"></div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+<div id="modal" role="dialog" aria-modal="true"></div>
+<input type="file" id="fileIn" accept=".json,application/json" hidden>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s);
+const uid=()=>Math.random().toString(36).slice(2,10);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const KEY='raumplaner.v1';
+const PALETTE=['#E3B23C','#6C9A8B','#D1603D','#4F6D7A','#A26769','#8FB8DE','#C9ADA7','#7A9E3F','#9A7AA0','#B8B08D'];
+const TYPES=['Bett','Sofa','Schrank','Kommode','Regal','Tisch','Schreibtisch','Stuhl','Sonstiges'];
+const round=(v,g)=>Math.round(v/g)*g;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const fmt=v=>String(Math.round(v));
+
+function rectPts(w,l){return [{x:0,y:0},{x:w,y:0},{x:w,y:l},{x:0,y:l}]}
+function newRoom(name,w,l){
+  const lay={id:uid(),name:'Variante A',items:[]};
+  return {id:uid(),name,pts:rectPts(w,l),openings:[],layouts:[lay],activeLayout:lay.id};
+}
+function defaultState(){
+  const r=newRoom('Zimmer 1',400,350);
+  r.openings=[{id:uid(),type:'door',wall:3,off:30,w:85,hinge:'l',swing:'in'},{id:uid(),type:'window',wall:1,off:100,w:140}];
+  return {v:1,rooms:[r],activeRoom:r.id,settings:{grid:5,snap:true},
+    library:[
+      {id:uid(),name:'Bett',w:140,d:200,color:PALETTE[5],type:'Bett'},
+      {id:uid(),name:'Kleiderschrank',w:150,d:60,color:PALETTE[3],type:'Schrank'},
+      {id:uid(),name:'Schreibtisch',w:140,d:70,color:PALETTE[0],type:'Schreibtisch'},
+      {id:uid(),name:'Sofa',w:200,d:90,color:PALETTE[1],type:'Sofa'},
+      {id:uid(),name:'Regal',w:80,d:35,color:PALETTE[4],type:'Regal'}]};
+}
+function load(){try{const j=localStorage.getItem(KEY);if(!j)return null;const s=JSON.parse(j);return valid(s)?s:null}catch(e){return null}}
+function valid(s){return s&&Array.isArray(s.rooms)&&s.rooms.length&&Array.isArray(s.library)&&s.rooms.every(r=>Array.isArray(r.pts)&&r.pts.length>=3&&Array.isArray(r.layouts)&&r.layouts.length)}
+
+let S=load()||defaultState();
+S.settings=S.settings||{grid:5,snap:true};
+let hist=[JSON.stringify(S)],hp=0;
+const UI={mode:'furn',sel:null,view:{s:1,tx:0,ty:0}};
+
+const room=()=>S.rooms.find(r=>r.id===S.activeRoom)||S.rooms[0];
+const layout=(r=room())=>r.layouts.find(l=>l.id===r.activeLayout)||r.layouts[0];
+const items=()=>layout().items;
+const selItem=()=>UI.sel?.kind==='item'?items().find(i=>i.id===UI.sel.id):null;
+const selOp=()=>UI.sel?.kind==='op'?room().openings.find(o=>o.id===UI.sel.id):null;
+
+function save(){try{localStorage.setItem(KEY,hist[hp]);localStorage.setItem(KEY+'.t',String(Date.now()))}catch(e){}schedulePush()}
+function commit(){const j=JSON.stringify(S);if(j===hist[hp])return;hist=hist.slice(0,hp+1);hist.push(j);if(hist.length>100)hist.shift();hp=hist.length-1;save();updBar()}
+function restore(){S=JSON.parse(hist[hp]);validateSel();save();renderAll()}
+function undo(){if(hp>0){hp--;restore()}}
+function redo(){if(hp<hist.length-1){hp++;restore()}}
+function validateSel(){const s=UI.sel;if(!s)return;const r=room();
+  if(s.kind==='item'&&!selItem())UI.sel=null;
+  if(s.kind==='op'&&!selOp())UI.sel=null;
+  if((s.kind==='vtx'||s.kind==='wall')&&s.i>=r.pts.length)UI.sel=null;}
+
+/* ---------- GitHub sync ---------- */
+const SYNC_KEY='raumplaner.sync',DEFAULT_REPO='Rilotto/raumplaner-daten',DATA_PATH='daten.json';
+let sync=(()=>{try{const c=JSON.parse(localStorage.getItem(SYNC_KEY));return c&&c.repo&&c.token?c:null}catch(e){return null}})();
+const SY={sha:null,timer:null,busy:false,dirty:false,state:'off',msg:'Nur auf diesem Gerät gespeichert'};
+const localTs=()=>{try{return +localStorage.getItem(KEY+'.t')||0}catch(e){return 0}};
+function setSync(st,msg){SY.state=st;SY.msg=msg;const b=$('#sync');if(b){b.dataset.st=st;b.title=msg;b.setAttribute('aria-label','Speicherort: '+msg)}}
+const b64e=str=>{const b=new TextEncoder().encode(str);let r='';for(let i=0;i<b.length;i+=0x8000)r+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));return btoa(r)};
+const b64d=str=>new TextDecoder().decode(Uint8Array.from(atob(str.replace(/\s/g,'')),c=>c.charCodeAt(0)));
+function gh(method,body,cfg=sync){return fetch(`https://api.github.com/repos/${cfg.repo}/contents/${DATA_PATH}`,{method,cache:'no-store',
+  headers:{Authorization:'Bearer '+cfg.token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'},body:body?JSON.stringify(body):undefined})}
+async function pull(cfg=sync){const r=await gh('GET',null,cfg);if(r.status===404)return null;if(!r.ok)throw r.status;const j=await r.json();SY.sha=j.sha;return JSON.parse(b64d(j.content))}
+function syncErr(e){return e===401?'Token ungültig oder abgelaufen':e===403?'Token hat keinen Zugriff auf das Repo':e===404?'Repo nicht gefunden':'Keine Verbindung, Änderungen bleiben auf dem Gerät'}
+function payload(){const o=JSON.parse(hist[hp]);o.updatedAt=localTs()||Date.now();return JSON.stringify(o)}
+async function push(){if(!sync)return;if(SY.busy){SY.dirty=true;return}clearTimeout(SY.timer);SY.timer=null;SY.busy=true;SY.dirty=false;setSync('busy','Speichert in GitHub …');
+  try{const body={message:'Raumplaner '+new Date().toLocaleString('de-DE'),content:b64e(payload())};if(SY.sha)body.sha=SY.sha;
+    let r=await gh('PUT',body);
+    if(r.status===409||r.status===422){const g=await gh('GET');if(g.ok){SY.sha=(await g.json()).sha;body.sha=SY.sha;r=await gh('PUT',body)}}
+    if(!r.ok)throw r.status;SY.sha=(await r.json()).content.sha;setSync('ok','In GitHub gespeichert')}
+  catch(e){setSync('err',syncErr(e))}
+  finally{SY.busy=false;if(SY.dirty)schedulePush()}}
+function schedulePush(){if(!sync)return;clearTimeout(SY.timer);setSync('wait','Änderungen werden gleich gespeichert');SY.timer=setTimeout(push,2500)}
+function adopt(remote){const t=remote.updatedAt||Date.now();delete remote.updatedAt;S=remote;S.settings=S.settings||{grid:5,snap:true};
+  hist=[JSON.stringify(S)];hp=0;try{localStorage.setItem(KEY,hist[0]);localStorage.setItem(KEY+'.t',String(t))}catch(e){}UI.sel=null;renderAll();fit()}
+async function syncNow(){if(!sync||SY.busy||SY.timer)return;setSync('busy','Lädt aus GitHub …');
+  try{const remote=await pull(),rt=remote?.updatedAt||0,lt=localTs();
+    if(remote&&valid(remote)&&rt>lt){adopt(remote);setSync('ok','Neuester Stand aus GitHub geladen')}
+    else if(!remote||lt>rt)await push();else setSync('ok','In GitHub gespeichert')}
+  catch(e){setSync('err',syncErr(e))}}
+function saveCfg(){try{sync?localStorage.setItem(SYNC_KEY,JSON.stringify(sync)):localStorage.removeItem(SYNC_KEY)}catch(e){}}
+function syncMenu(){
+  if(sync){const {el,close}=modal(`<h2>GitHub-Sync</h2><p class="hint">Verbunden mit <b>${esc(sync.repo)}</b>.<br>${esc(SY.msg)}</p>
+    <div class="stack"><button class="btn" id="snow">Jetzt abgleichen</button><button class="btn danger" id="soff">Trennen</button></div>
+    <p class="hint" style="margin-top:12px">Trennen entfernt den Zugangsschlüssel von diesem Gerät. Deine Räume bleiben hier und in GitHub erhalten.</p>`);
+    el.querySelector('#snow').onclick=()=>{close();syncNow()};
+    el.querySelector('#soff').onclick=()=>{close();sync=null;SY.sha=null;saveCfg();setSync('off','Nur auf diesem Gerät gespeichert')};return}
+  const ref=modal(`<h2>Mit GitHub verbinden</h2>
+    <p class="hint">Dann landen deine Räume automatisch in deinem privaten Repo und sind auf jedem Gerät gleich. Das richtest du pro Gerät einmal ein.</p>
+    <ol><li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Neuen Token auf GitHub erstellen</a></li>
+    <li>Bei „Repository access“ nur das Daten-Repo auswählen</li><li>Bei „Permissions“ → „Contents“ auf „Read and write“ stellen</li><li>Token kopieren und hier einfügen</li></ol>
+    <div class="row"><label class="f">Daten-Repo<input id="srepo" value="${esc(DEFAULT_REPO)}" autocapitalize="off" spellcheck="false"></label></div>
+    <div class="row"><label class="f">Token<input id="stok" type="password" autocomplete="off" placeholder="github_pat_…"></label></div><p class="msg" id="smsg"></p>`,m=>{
+    const cfg={repo:m.querySelector('#srepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\/$/,''),token:m.querySelector('#stok').value.trim()},msg=m.querySelector('#smsg'),btn=m.querySelector('[data-m=ok]');
+    if(!/^[\w.-]+\/[\w.-]+$/.test(cfg.repo)){msg.textContent='Repo bitte als benutzername/repo-name eingeben';return false}
+    if(!cfg.token){msg.textContent='Bitte den Token einfügen';return false}
+    btn.disabled=true;msg.textContent='';btn.textContent='Verbindet …';
+    connect(cfg).then(ok=>{if(ok)ref.close();else{btn.disabled=false;btn.textContent='Verbinden'}},e=>{msg.textContent=syncErr(e);btn.disabled=false;btn.textContent='Verbinden'});return false},'Verbinden')}
+async function connect(cfg){SY.sha=null;const remote=await pull(cfg);sync=cfg;saveCfg();
+  if(remote&&valid(remote)&&localTs()){
+    const when=remote.updatedAt?new Date(remote.updatedAt).toLocaleString('de-DE'):'unbekannt';
+    setTimeout(()=>{const {el,close}=modal(`<h2>In GitHub liegt schon ein Stand</h2><p class="hint">Gespeichert am ${esc(when)}. Welchen Stand möchtest du behalten? Der andere bleibt in der GitHub-Versionsgeschichte erhalten.</p>
+      <div class="stack"><button class="btn primary" id="cg">Stand aus GitHub laden</button><button class="btn" id="cl">Stand von diesem Gerät hochladen</button></div>`);
+      el.querySelector('#cg').onclick=()=>{close();adopt(remote);setSync('ok','Stand aus GitHub geladen')};
+      el.querySelector('#cl').onclick=()=>{close();push()}},0)}
+  else if(remote&&valid(remote)){adopt(remote);setSync('ok','Stand aus GitHub geladen')}
+  else await push();
+  return true}
+
+/* ---------- geometry ---------- */
+function walls(r){const p=r.pts,n=p.length;return p.map((a,i)=>{const b=p[(i+1)%n],dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;return {a,b,i,len,ux:dx/len,uy:dy/len}})}
+function inside(pt,pts){let c=false;for(let i=0,j=pts.length-1;i<pts.length;j=i++){const a=pts[i],b=pts[j];if((a.y>pt.y)!==(b.y>pt.y)&&pt.x<(b.x-a.x)*(pt.y-a.y)/(b.y-a.y)+a.x)c=!c}return c}
+function inNormal(r,w){let nx=-w.uy,ny=w.ux;const m={x:(w.a.x+w.b.x)/2+nx*2,y:(w.a.y+w.b.y)/2+ny*2};if(!inside(m,r.pts)){nx=-nx;ny=-ny}return {x:nx,y:ny}}
+function polyArea(p){let s=0;for(let i=0;i<p.length;i++){const a=p[i],b=p[(i+1)%p.length];s+=a.x*b.y-b.x*a.y}return Math.abs(s)/2}
+function corners(it,shrink=0){const t=it.rot*Math.PI/180,c=Math.cos(t),s=Math.sin(t),hw=it.w/2-shrink,hd=it.d/2-shrink;
+  return [[-hw,-hd],[hw,-hd],[hw,hd],[-hw,hd]].map(([x,y])=>({x:it.x+x*c-y*s,y:it.y+x*s+y*c}))}
+function bbox(pts){let a={minX:Infinity,minY:Infinity,maxX:-Infinity,maxY:-Infinity};for(const p of pts){a.minX=Math.min(a.minX,p.x);a.maxX=Math.max(a.maxX,p.x);a.minY=Math.min(a.minY,p.y);a.maxY=Math.max(a.maxY,p.y)}return a}
+function sat(A,B){for(const P of [A,B])for(let i=0;i<P.length;i++){const a=P[i],b=P[(i+1)%P.length],nx=a.y-b.y,ny=b.x-a.x,l=Math.hypot(nx,ny)||1;
+  let a0=Infinity,a1=-Infinity,b0=Infinity,b1=-Infinity;for(const p of A){const v=(p.x*nx+p.y*ny)/l;a0=Math.min(a0,v);a1=Math.max(a1,v)}
+  for(const p of B){const v=(p.x*nx+p.y*ny)/l;b0=Math.min(b0,v);b1=Math.max(b1,v)}if(a1<=b0+0.5||b1<=a0+0.5)return false}return true}
+function opGeom(r,o){const W=walls(r)[o.wall];if(!W)return null;const n=inNormal(r,W),u={x:W.ux,y:W.uy};
+  const A={x:W.a.x+u.x*o.off,y:W.a.y+u.y*o.off},B={x:W.a.x+u.x*(o.off+o.w),y:W.a.y+u.y*(o.off+o.w)};
+  const g={W,n,u,A,B};
+  if(o.type==='door'){const H=o.hinge==='r'?B:A,O=o.hinge==='r'?A:B,sg=o.swing==='out'?-1:1;
+    const v1={x:n.x*sg,y:n.y*sg},v2={x:(O.x-H.x)/o.w,y:(O.y-H.y)/o.w};const arc=[];
+    for(let k=0;k<=12;k++){const t=k/12*Math.PI/2;arc.push({x:H.x+o.w*(v1.x*Math.cos(t)+v2.x*Math.sin(t)),y:H.y+o.w*(v1.y*Math.cos(t)+v2.y*Math.sin(t))})}
+    Object.assign(g,{H,O,L:arc[0],arc,sector:[H,...arc]})}
+  return g}
+function clampOpenings(r){const W=walls(r);r.openings=r.openings.filter(o=>W[o.wall]);for(const o of r.openings){const L=W[o.wall].len;o.w=clamp(o.w,10,L);o.off=clamp(o.off,0,L-o.w)}}
+function conflicts(){const r=room(),its=items(),out=new Map();const add=(id,m)=>{if(!out.has(id))out.set(id,[]);out.get(id).push(m)};
+  const polys=its.map(it=>corners(it));const doors=r.openings.filter(o=>o.type==='door').map(o=>opGeom(r,o)).filter(Boolean);
+  its.forEach((it,i)=>{
+    if(corners(it,0.5).some(p=>!inside(p,r.pts))||r.pts.some(p=>inside(p,corners(it,0.5))))add(it.id,'Ragt über eine Wand');
+    for(let j=0;j<its.length;j++)if(j!==i&&sat(polys[i],polys[j]))add(it.id,'Überschneidet sich mit „'+its[j].name+'“');
+    if(doors.some(g=>sat(polys[i],g.sector)))add(it.id,'Steht im Schwenkbereich einer Tür');
+  });return out}
+function rayHit(o,d,segs){let best=Infinity;for(const [a,b] of segs){const ex=b.x-a.x,ey=b.y-a.y,den=d.x*ey-d.y*ex;if(Math.abs(den)<1e-9)continue;
+  const ax=a.x-o.x,ay=a.y-o.y,t=(ax*ey-ay*ex)/den,u=(ax*d.y-ay*d.x)/den;if(t>0.01&&u>=-1e-6&&u<=1+1e-6)best=Math.min(best,t)}return best}
+
+/* ---------- snapping ---------- */
+function snapItem(it){if(!S.settings.snap)return;const g=S.settings.grid,bb=bbox(corners(it)),hw=(bb.maxX-bb.minX)/2,hh=(bb.maxY-bb.minY)/2;
+  if(g>0){it.x=round(it.x-hw,g)+hw;it.y=round(it.y-hh,g)+hh}
+  const thr=14/UI.view.s;let bx=null,by=null;const minX=it.x-hw,maxX=it.x+hw,minY=it.y-hh,maxY=it.y+hh;
+  const edges=[];for(const w of walls(room()))edges.push([w.a,w.b]);
+  for(const o of items())if(o.id!==it.id){const c=corners(o);for(let k=0;k<4;k++)edges.push([c[k],c[(k+1)%4]])}
+  for(const [a,b] of edges){
+    if(Math.abs(a.y-b.y)<0.01){const x0=Math.min(a.x,b.x),x1=Math.max(a.x,b.x);if(Math.min(x1,maxX)-Math.max(x0,minX)>0)for(const e of [minY,maxY]){const d=a.y-e;if(Math.abs(d)<thr&&(by===null||Math.abs(d)<Math.abs(by)))by=d}}
+    else if(Math.abs(a.x-b.x)<0.01){const y0=Math.min(a.y,b.y),y1=Math.max(a.y,b.y);if(Math.min(y1,maxY)-Math.max(y0,minY)>0)for(const e of [minX,maxX]){const d=a.x-e;if(Math.abs(d)<thr&&(bx===null||Math.abs(d)<Math.abs(bx)))bx=d}}}
+  if(bx!==null)it.x+=bx;if(by!==null)it.y+=by}
+function snapPt(p,i){const r=room(),n=r.pts.length,g=S.settings.grid;if(S.settings.snap&&g){p.x=round(p.x,g);p.y=round(p.y,g)}
+  const thr=14/UI.view.s;for(const j of [(i-1+n)%n,(i+1)%n]){const q=r.pts[j];if(Math.abs(p.x-q.x)<thr)p.x=q.x;if(Math.abs(p.y-q.y)<thr)p.y=q.y}}
+function setWallLength(r,i,L){const W=walls(r)[i],d=L-W.len,e=0.01;if(Math.abs(d)<e)return;const b=W.b;
+  if(Math.abs(W.uy)<1e-6){const dir=Math.sign(W.ux),t=b.x;for(const p of r.pts)if(dir>0?p.x>=t-e:p.x<=t+e)p.x+=dir*d}
+  else if(Math.abs(W.ux)<1e-6){const dir=Math.sign(W.uy),t=b.y;for(const p of r.pts)if(dir>0?p.y>=t-e:p.y<=t+e)p.y+=dir*d}
+  else{b.x=W.a.x+W.ux*L;b.y=W.a.y+W.uy*L}clampOpenings(r)}
+function insertVertex(r,i){const W=walls(r)[i],h=W.len/2;r.pts.splice(i+1,0,{x:(W.a.x+W.b.x)/2,y:(W.a.y+W.b.y)/2});
+  for(const o of r.openings){if(o.wall>i)o.wall++;else if(o.wall===i&&o.off>=h){o.wall=i+1;o.off-=h}}clampOpenings(r)}
+function deleteVertex(r,k){const n=r.pts.length;if(n<=3)return;const W=walls(r),prev=(k-1+n)%n;
+  for(const o of r.openings)if(o.wall===k){o.wall=prev;o.off+=W[prev].len}
+  r.pts.splice(k,1);for(const o of r.openings)if(o.wall>k)o.wall--;clampOpenings(r)}
+
+/* ---------- view ---------- */
+const svg=$('#svg'),world=$('#world'),stage=$('#stage');
+function fit(){const r=room(),bb=bbox(r.pts),W=stage.clientWidth,H=stage.clientHeight,pad=Math.min(70,Math.min(W,H)*.14);
+  const bw=Math.max(bb.maxX-bb.minX,1),bh=Math.max(bb.maxY-bb.minY,1);const s=clamp(Math.min((W-2*pad)/bw,(H-2*pad-30)/bh),0.05,20);
+  UI.view={s,tx:(W-bw*s)/2-bb.minX*s,ty:(H-30-bh*s)/2-bb.minY*s};render()}
+function toWorld(cx,cy){const b=svg.getBoundingClientRect(),v=UI.view;return {x:(cx-b.left-v.tx)/v.s,y:(cy-b.top-v.ty)/v.s}}
+function zoomAt(cx,cy,ns){const b=svg.getBoundingClientRect(),v=UI.view;ns=clamp(ns,0.05,20);const w=toWorld(cx,cy);v.s=ns;v.tx=cx-b.left-w.x*ns;v.ty=cy-b.top-w.y*ns;render()}
+
+/* ---------- render ---------- */
+function render(){
+  const r=room(),v=UI.view,s=v.s,px=n=>n/s,plan=UI.mode==='plan',W=walls(r);let h='';
+  // grid
+  const x0=-v.tx/s,y0=-v.ty/s,x1=x0+stage.clientWidth/s,y1=y0+stage.clientHeight/s,step=s*10>=7?10:(s*50>=7?50:100);
+  for(let x=Math.floor(x0/step)*step;x<=x1;x+=step)h+=`<line class="gl${x%100===0?' m':''}" vector-effect="non-scaling-stroke" x1="${x}" y1="${y0}" x2="${x}" y2="${y1}"/>`;
+  for(let y=Math.floor(y0/step)*step;y<=y1;y+=step)h+=`<line class="gl${y%100===0?' m':''}" vector-effect="non-scaling-stroke" x1="${x0}" y1="${y}" x2="${x1}" y2="${y}"/>`;
+  const P=r.pts.map(p=>p.x+','+p.y).join(' ');
+  h+=`<polygon class="wall" vector-effect="non-scaling-stroke" points="${P}"/><polygon class="floor" points="${P}"/>`;
+  // openings
+  let doorsSvg='';
+  for(const o of r.openings){const g=opGeom(r,o);if(!g)continue;const no={x:-g.n.x,y:-g.n.y},t=px(13);
+    h+=`<polygon class="gap" points="${[g.A,g.B,{x:g.B.x+no.x*t,y:g.B.y+no.y*t},{x:g.A.x+no.x*t,y:g.A.y+no.y*t}].map(p=>p.x+','+p.y).join(' ')}"/>`;
+    if(o.type==='window'){for(const k of [0,.5,1]){const q=px(12)*k;h+=`<line class="win" vector-effect="non-scaling-stroke" x1="${g.A.x+no.x*q}" y1="${g.A.y+no.y*q}" x2="${g.B.x+no.x*q}" y2="${g.B.y+no.y*q}"/>`}
+      h+=`<line class="win" vector-effect="non-scaling-stroke" x1="${g.A.x}" y1="${g.A.y}" x2="${g.A.x+no.x*px(12)}" y2="${g.A.y+no.y*px(12)}"/><line class="win" vector-effect="non-scaling-stroke" x1="${g.B.x}" y1="${g.B.y}" x2="${g.B.x+no.x*px(12)}" y2="${g.B.y+no.y*px(12)}"/>`}
+    else doorsSvg+=`<line class="dline" vector-effect="non-scaling-stroke" x1="${g.H.x}" y1="${g.H.y}" x2="${g.L.x}" y2="${g.L.y}"/><polyline class="darc" vector-effect="non-scaling-stroke" points="${g.arc.map(p=>p.x+','+p.y).join(' ')}"/>`;
+    if(plan&&UI.sel?.kind==='op'&&UI.sel.id===o.id)h+=`<line class="opsel" vector-effect="non-scaling-stroke" x1="${g.A.x}" y1="${g.A.y}" x2="${g.B.x}" y2="${g.B.y}"/>`;
+  }
+  // items
+  const cf=conflicts();
+  for(const it of items()){const warn=cf.has(it.id),rot=it.rot;let tr=((rot%360)+360)%360,flip=tr>90&&tr<=270?180:0;
+    const sw=it.w*s,fs=clamp(Math.min(sw/7,it.d*s/2.6),0,13),show=sw>34&&it.d*s>18;
+    const maxC=Math.max(3,Math.floor(sw/(fs*.55)));let nm=it.name;if(nm.length>maxC)nm=nm.slice(0,maxC-1)+'…';
+    h+=`<g class="it${warn?' warn':''}${plan?' ghost':''}" data-kind="item" data-id="${it.id}" transform="translate(${it.x} ${it.y}) rotate(${rot})">`+
+      `<rect x="${-it.w/2}" y="${-it.d/2}" width="${it.w}" height="${it.d}" rx="${px(2)}" fill="${esc(it.color)}" fill-opacity=".88" stroke="${esc(it.color)}" vector-effect="non-scaling-stroke" style="filter:brightness(.7)"/>`+
+      `<rect x="${-it.w/2}" y="${-it.d/2}" width="${it.w}" height="${it.d}" rx="${px(2)}" fill="${esc(it.color)}" fill-opacity=".88" stroke="none"/>`+
+      (show?`<g transform="rotate(${flip})"><text text-anchor="middle" font-size="${px(fs)}" font-weight="600" y="${it.d*s>40?-px(fs*.25):px(fs*.35)}">${esc(nm)}</text>`+
+        (it.d*s>40?`<text text-anchor="middle" font-size="${px(fs*.85)}" y="${px(fs*1.05)}" opacity=".75">${fmt(it.w)} × ${fmt(it.d)}</text>`:'')+`</g>`:'')+`</g>`}
+  h+=doorsSvg;
+  // selected item: outline, rotate handle, distances
+  const si=!plan&&selItem();
+  if(si){const c=corners(si,-px(3));h+=`<polygon class="sel" vector-effect="non-scaling-stroke" points="${c.map(p=>p.x+','+p.y).join(' ')}"/>`;
+    const t=si.rot*Math.PI/180,cs=Math.cos(t),sn=Math.sin(t),loc=(lx,ly)=>({x:si.x+lx*cs-ly*sn,y:si.y+lx*sn+ly*cs}),top=loc(si.w/2,-si.d/2),hd=loc(si.w/2+px(24),-si.d/2-px(24));
+    h+=`<line class="sel" vector-effect="non-scaling-stroke" x1="${top.x}" y1="${top.y}" x2="${hd.x}" y2="${hd.y}"/><circle class="handle" data-kind="rot" vector-effect="non-scaling-stroke" cx="${hd.x}" cy="${hd.y}" r="${px(13)}"/>`+
+      `<path d="M${hd.x-px(5)} ${hd.y+px(1)}a${px(5)} ${px(5)} 0 1 1 ${px(5)} ${px(5)}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
+    h+=dims(si,W,px)}
+  // wall labels
+  W.forEach(w=>{const n=inNormal(r,w),m={x:(w.a.x+w.b.x)/2-n.x*px(24),y:(w.a.y+w.b.y)/2-n.y*px(24)};let a=Math.atan2(w.uy,w.ux)*180/Math.PI;if(a>90)a-=180;if(a<-90)a+=180;
+    if(w.len*s>40)h+=`<text class="wl${plan&&UI.sel?.kind==='wall'&&UI.sel.i===w.i?' on':''}" font-size="${px(13)}" text-anchor="middle" dominant-baseline="middle" transform="translate(${m.x} ${m.y}) rotate(${a})">${fmt(w.len)} cm</text>`});
+  // plan handles
+  if(plan){
+    if(UI.sel?.kind==='wall'){const w=W[UI.sel.i];if(w)h+=`<line class="wsel" vector-effect="non-scaling-stroke" x1="${w.a.x}" y1="${w.a.y}" x2="${w.b.x}" y2="${w.b.y}"/>`}
+    W.forEach(w=>h+=`<line class="hit" data-kind="wall" data-i="${w.i}" vector-effect="non-scaling-stroke" x1="${w.a.x}" y1="${w.a.y}" x2="${w.b.x}" y2="${w.b.y}"/>`);
+    for(const o of r.openings){const g=opGeom(r,o);if(g)h+=`<line class="hit" data-kind="op" data-id="${o.id}" vector-effect="non-scaling-stroke" x1="${g.A.x}" y1="${g.A.y}" x2="${g.B.x}" y2="${g.B.y}"/>`}
+    r.pts.forEach((p,i)=>h+=`<circle class="vtx${UI.sel?.kind==='vtx'&&UI.sel.i===i?' on':''}" data-kind="vtx" data-i="${i}" vector-effect="non-scaling-stroke" cx="${p.x}" cy="${p.y}" r="${px(10)}"/>`)}
+  world.innerHTML=h;world.setAttribute('transform',`translate(${v.tx} ${v.ty}) scale(${s})`);
+  updInfo()}
+function dims(it,W,px){const bb=bbox(corners(it)),segs=W.map(w=>[w.a,w.b]);
+  for(const o of items())if(o.id!==it.id){const c=corners(o);for(let k=0;k<4;k++)segs.push([c[k],c[(k+1)%4]])}
+  const cx=(bb.minX+bb.maxX)/2,cy=(bb.minY+bb.maxY)/2;let h='';
+  for(const [o,d] of [[{x:bb.maxX,y:cy},{x:1,y:0}],[{x:bb.minX,y:cy},{x:-1,y:0}],[{x:cx,y:bb.maxY},{x:0,y:1}],[{x:cx,y:bb.minY},{x:0,y:-1}]]){
+    const t=rayHit(o,d,segs);if(!isFinite(t)||t<1||t*UI.view.s<22)continue;const e={x:o.x+d.x*t,y:o.y+d.y*t},q=px(5),nx=d.y*q,ny=-d.x*q,m={x:(o.x+e.x)/2,y:(o.y+e.y)/2},lbl=fmt(t),bw=px(lbl.length*7.5+8),bh=px(17);
+    h+=`<line class="dim" vector-effect="non-scaling-stroke" x1="${o.x}" y1="${o.y}" x2="${e.x}" y2="${e.y}"/>`+
+      `<line class="dim" vector-effect="non-scaling-stroke" x1="${o.x-nx}" y1="${o.y-ny}" x2="${o.x+nx}" y2="${o.y+ny}"/><line class="dim" vector-effect="non-scaling-stroke" x1="${e.x-nx}" y1="${e.y-ny}" x2="${e.x+nx}" y2="${e.y+ny}"/>`+
+      `<rect class="dimbg" x="${m.x-bw/2}" y="${m.y-bh/2}" width="${bw}" height="${bh}" rx="${px(4)}"/><text class="dimt" font-size="${px(14)}" text-anchor="middle" dominant-baseline="central" x="${m.x}" y="${m.y}">${lbl}</text>`}
+  return h}
+function updInfo(){const r=room(),a=polyArea(r.pts)/1e4,used=items().reduce((s,i)=>s+i.w*i.d,0)/1e4,f=v=>v.toFixed(1).replace('.',',');
+  $('#info').textContent=`${f(a)} m² Fläche, ${f(Math.max(0,a-used))} m² frei`}
+function updBar(){$('#undo').disabled=hp<=0;$('#redo').disabled=hp>=hist.length-1;
+  document.querySelectorAll('.seg button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.mode===UI.mode))}
+function renderRoomSel(){$('#roomSel').innerHTML=S.rooms.map(r=>`<option value="${r.id}"${r.id===room().id?' selected':''}>${esc(r.name)}</option>`).join('')}
+function renderVariants(){const r=room();$('#variants').innerHTML=r.layouts.map(l=>`<button data-lay="${l.id}" aria-pressed="${l.id===layout().id}">${esc(l.name)}</button>`).join('')+`<button data-lay="+" aria-label="Variante hinzufügen">+ Variante</button>`}
+function renderAll(){renderRoomSel();renderVariants();renderPanel();updBar();render()}
+
+/* ---------- panel ---------- */
+const num=(label,f,val,sc,u='cm',extra='')=>`<label class="f unit" data-u="${u}">${label}<input type="number" inputmode="decimal" data-f="${f}" data-scope="${sc}" value="${Math.round(val*10)/10}" ${extra}></label>`;
+function swatches(cur,sc){return `<div class="swatches">${PALETTE.map(c=>`<button class="sw" style="background:${c}" data-act="color" data-c="${c}" data-scope="${sc}" aria-label="Farbe ${c}" aria-pressed="${c.toLowerCase()===String(cur).toLowerCase()}"></button>`).join('')}<input type="color" class="sw" data-f="color" data-scope="${sc}" value="${esc(cur)}" aria-label="Eigene Farbe"></div>`}
+function typeSel(cur,sc){return `<label class="f">Art<select data-f="type" data-scope="${sc}">${TYPES.map(t=>`<option${t===cur?' selected':''}>${t}</option>`).join('')}</select></label>`}
+function renderPanel(){const p=$('#panel'),r=room();let h='';
+  if(UI.mode==='furn'){const it=selItem();
+    if(it){const cf=conflicts().get(it.id);
+      h=`<h2>${esc(it.name)}</h2>${cf?cf.map(m=>`<div class="warnbox">${esc(m)}</div>`).join(''):''}
+      <div class="row"><label class="f">Name<input data-f="name" data-scope="item" value="${esc(it.name)}"></label></div>
+      <div class="grid2">${num('Breite','w',it.w,'item')}${num('Tiefe','d',it.d,'item')}</div>
+      <div class="row" style="margin-top:10px">${num('Drehung','rot',it.rot,'item','°')}<button class="btn" data-act="rot" data-v="-90">−90°</button><button class="btn" data-act="rot" data-v="90">+90°</button></div>
+      <div class="row">${typeSel(it.type,'item')}</div>
+      <h3>Farbe</h3>${swatches(it.color,'item')}
+      <div class="row"><button class="btn" data-act="dup">Duplizieren</button><button class="btn" data-act="tolib">In Bibliothek speichern</button></div>
+      <div class="row"><button class="btn danger" data-act="del">Löschen</button><button class="btn primary" data-act="done" style="margin-left:auto">Fertig</button></div>`}
+    else{h=`<h2>Möbel</h2><p class="hint">Tippe auf „Platzieren“, dann ziehst du das Möbel im Raum an seinen Platz. Antippen öffnet die Einstellungen.</p>
+      <button class="btn primary" data-act="libnew" style="width:100%;margin-bottom:12px">Neues Möbel anlegen</button>
+      ${S.library.length?`<ul class="lib">${S.library.map(l=>`<li><span class="chip" style="background:${esc(l.color)}"></span><span class="nm"><b>${esc(l.name)}</b><small>${fmt(l.w)} × ${fmt(l.d)} cm</small></span>
+        <button class="btn icon" data-act="libedit" data-id="${l.id}" aria-label="${esc(l.name)} bearbeiten"><svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg></button>
+        <button class="btn" data-act="place" data-id="${l.id}">Platzieren</button></li>`).join('')}</ul>`:'<p class="hint">Noch keine Möbel in der Bibliothek.</p>'}`}}
+  else{const s=UI.sel,W=walls(r);
+    if(s?.kind==='wall'&&W[s.i]){h=`<h2>Wand ${s.i+1}</h2><p class="hint">Ziehe die Wand, um sie parallel zu verschieben.</p>
+      <div class="row">${num('Länge','len',W[s.i].len,'wall')}</div>
+      <div class="stack"><button class="btn" data-act="addDoor">Tür einsetzen</button><button class="btn" data-act="addWin">Fenster einsetzen</button><button class="btn" data-act="insVtx">Ecke in der Mitte einfügen</button></div>`}
+    else if(s?.kind==='vtx'&&r.pts[s.i]){const q=r.pts[s.i];h=`<h2>Ecke ${s.i+1}</h2><p class="hint">Ziehe die Ecke frei. Sie rastet an Raster und Nachbarecken ein.</p>
+      <div class="grid2">${num('X','x',q.x,'vtx')}${num('Y','y',q.y,'vtx')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn danger" data-act="delVtx" ${r.pts.length<=3?'disabled':''}>Ecke entfernen</button></div>`}
+    else if(s?.kind==='op'&&selOp()){const o=selOp(),d=o.type==='door';
+      h=`<h2>${d?'Tür':'Fenster'}</h2><p class="hint">Ziehe ${d?'die Tür':'das Fenster'} entlang der Wand.</p>
+      <div class="grid2">${num('Breite','w',o.w,'op')}${num('Abstand Wandanfang','off',o.off,'op')}</div>
+      ${d?`<h3>Anschlag</h3><div class="seg"><button data-act="hinge" data-v="l" aria-pressed="${o.hinge!=='r'}">Links</button><button data-act="hinge" data-v="r" aria-pressed="${o.hinge==='r'}">Rechts</button></div>
+      <h3>Öffnet nach</h3><div class="seg"><button data-act="swing" data-v="in" aria-pressed="${o.swing!=='out'}">Innen</button><button data-act="swing" data-v="out" aria-pressed="${o.swing==='out'}">Außen</button></div>`:''}
+      <div class="row" style="margin-top:16px"><button class="btn danger" data-act="delOp">Entfernen</button></div>`}
+    else{h=`<h2>Grundriss</h2><p class="hint">Ecken und Wände ziehen, um die Form anzupassen. Wand antippen, um die Länge einzugeben oder Türen, Fenster und neue Ecken einzusetzen.</p>
+      <div class="row"><label class="f">Raumname<input data-f="name" data-scope="room" value="${esc(r.name)}"></label></div>
+      <h3>Neu anlegen aus Maßen</h3><div class="grid2"><label class="f unit" data-u="cm">Breite<input type="number" id="nw" value="400"></label><label class="f unit" data-u="cm">Länge<input type="number" id="nl" value="350"></label></div>
+      <div class="row" style="margin-top:10px"><button class="btn" data-act="shape" data-v="rect">Rechteck</button><button class="btn" data-act="shape" data-v="L">L-Form</button></div>`}}
+  p.innerHTML=h}
+function applyField(el,final){const f=el.dataset.f,sc=el.dataset.scope,r=room();let v=el.type==='number'?parseFloat(String(el.value).replace(',','.')):el.value;
+  if(el.type==='number'&&!isFinite(v))return;
+  if(sc==='item'){const it=selItem();if(!it)return;if(f==='rot')v=((v%360)+360)%360;if(f==='w'||f==='d')v=Math.max(1,v);it[f]=v;if(f==='color')markSw(v)}
+  else if(sc==='room'){r.name=v;renderRoomSel()}
+  else if(sc==='wall'){if(!final)return;setWallLength(r,UI.sel.i,Math.max(1,v))}
+  else if(sc==='vtx'){r.pts[UI.sel.i][f]=v;clampOpenings(r)}
+  else if(sc==='op'){const o=selOp();if(!o)return;o[f]=v;if(final)clampOpenings(r)}
+  render();if(final){commit();if(sc==='item'&&(f==='w'||f==='d'||f==='rot'))refreshWarn()}}
+function markSw(c){document.querySelectorAll('#panel .sw[data-c]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c.toLowerCase()===c.toLowerCase()))}
+function refreshWarn(){const a=document.activeElement,id=a?.dataset?.f;renderPanel();if(id){const e=$(`#panel [data-f="${id}"]`);if(e&&e.type!=='color')e.focus()}}
+
+/* ---------- actions ---------- */
+function select(sel){UI.sel=sel;renderPanel();render()}
+function placeFromLib(l){const r=room(),bb=bbox(r.pts);let c={x:(bb.minX+bb.maxX)/2,y:(bb.minY+bb.maxY)/2};if(!inside(c,r.pts))c={x:r.pts[0].x+l.w/2+10,y:r.pts[0].y+l.d/2+10};
+  const it={id:uid(),name:l.name,w:l.w,d:l.d,x:c.x,y:c.y,rot:0,color:l.color,type:l.type||'Sonstiges'};snapItem(it);items().push(it);UI.sel={kind:'item',id:it.id};commit();renderPanel();render()}
+function act(b){const a=b.dataset.act,r=room(),it=selItem();
+  switch(a){
+    case 'color':if(it){it.color=b.dataset.c;markSw(it.color);commit();render()}break;
+    case 'rot':if(it){it.rot=((it.rot+ +b.dataset.v)%360+360)%360;snapItem(it);commit();renderPanel();render()}break;
+    case 'dup':if(it){const c={...it,id:uid(),x:it.x+20,y:it.y+20};items().push(c);UI.sel={kind:'item',id:c.id};commit();renderPanel();render()}break;
+    case 'tolib':if(it){S.library.push({id:uid(),name:it.name,w:it.w,d:it.d,color:it.color,type:it.type});commit();b.textContent='Gespeichert';b.disabled=true}break;
+    case 'del':deleteSel();break;
+    case 'done':select(null);break;
+    case 'place':{const l=S.library.find(x=>x.id===b.dataset.id);if(l)placeFromLib(l)}break;
+    case 'libnew':libForm(null);break;
+    case 'libedit':libForm(S.library.find(x=>x.id===b.dataset.id));break;
+    case 'addDoor':case 'addWin':{const W=walls(r)[UI.sel.i],d=a==='addDoor',w=Math.min(d?85:120,W.len);
+      const o={id:uid(),type:d?'door':'window',wall:W.i,off:Math.max(0,(W.len-w)/2),w};if(d){o.hinge='l';o.swing='in'}r.openings.push(o);UI.sel={kind:'op',id:o.id};commit();renderPanel();render()}break;
+    case 'insVtx':insertVertex(r,UI.sel.i);UI.sel={kind:'vtx',i:UI.sel.i+1};commit();renderPanel();render();break;
+    case 'delVtx':deleteVertex(r,UI.sel.i);UI.sel=null;commit();renderPanel();render();break;
+    case 'delOp':deleteSel();break;
+    case 'hinge':case 'swing':{const o=selOp();if(o){o[a]=b.dataset.v;commit();renderPanel();render()}}break;
+    case 'shape':{const w=Math.max(50,+$('#nw').value||400),l=Math.max(50,+$('#nl').value||350);
+      r.pts=b.dataset.v==='L'?[{x:0,y:0},{x:w,y:0},{x:w,y:round(l*.55,5)},{x:round(w*.55,5),y:round(l*.55,5)},{x:round(w*.55,5),y:l},{x:0,y:l}]:rectPts(w,l);
+      r.openings=[];UI.sel=null;commit();renderPanel();fit()}break;
+  }}
+function deleteSel(){const r=room(),s=UI.sel;if(!s)return;
+  if(s.kind==='item')layout().items=items().filter(i=>i.id!==s.id);
+  else if(s.kind==='op')r.openings=r.openings.filter(o=>o.id!==s.id);
+  else if(s.kind==='vtx')deleteVertex(r,s.i);else return;
+  UI.sel=null;commit();renderPanel();render()}
+
+/* ---------- modal ---------- */
+function modal(html,onOk,okLabel='Speichern',danger=false){const m=$('#modal');
+  m.innerHTML=`<div class="sheet">${html}${onOk?`<div class="row end" style="margin-top:14px"><button class="btn" data-m="x">Abbrechen</button><button class="btn ${danger?'danger':'primary'}" data-m="ok">${okLabel}</button></div>`:`<div class="row end" style="margin-top:14px"><button class="btn" data-m="x">Schließen</button></div>`}</div>`;
+  m.classList.add('open');const close=()=>{m.classList.remove('open');m.innerHTML=''};
+  m.onclick=e=>{const b=e.target.closest('[data-m]');if(e.target===m||b?.dataset.m==='x')close();else if(b?.dataset.m==='ok'){if(onOk(m)!==false)close()}};
+  const f=m.querySelector('input:not([type=color])');if(f)setTimeout(()=>f.focus(),30);return {el:m,close}}
+function confirmBox(text,label,fn){modal(`<h2>${esc(text)}</h2><p class="hint">Mit Rückgängig lässt sich das wiederherstellen.</p>`,()=>{fn()},label,true)}
+function libForm(l){const e=l||{name:'',w:100,d:60,color:PALETTE[(S.library.length)%PALETTE.length],type:'Sonstiges'};let color=e.color;
+  const {el}=modal(`<h2>${l?'Möbel bearbeiten':'Neues Möbel'}</h2>
+    <div class="row"><label class="f">Name<input name="name" value="${esc(e.name)}" placeholder="z. B. Nachttisch"></label></div>
+    <div class="grid2"><label class="f unit" data-u="cm">Breite<input type="number" inputmode="decimal" name="w" value="${e.w}"></label><label class="f unit" data-u="cm">Tiefe<input type="number" inputmode="decimal" name="d" value="${e.d}"></label></div>
+    <div class="row" style="margin-top:10px"><label class="f">Art<select name="type">${TYPES.map(t=>`<option${t===e.type?' selected':''}>${t}</option>`).join('')}</select></label></div>
+    <h3>Farbe</h3><div class="swatches" id="msw">${PALETTE.map(c=>`<button class="sw" style="background:${c}" data-c="${c}" aria-pressed="${c===color}"></button>`).join('')}<input type="color" class="sw" id="mcol" value="${esc(color)}"></div>
+    ${l?`<button class="btn danger" id="mdel">Aus Bibliothek entfernen</button>`:''}`,m=>{
+    const g=n=>m.querySelector(`[name=${n}]`).value,w=parseFloat(g('w').replace(',','.')),d=parseFloat(g('d').replace(',','.'));
+    if(!(w>0&&d>0)){m.querySelector('[name=w]').focus();return false}
+    const data={name:g('name').trim()||'Möbel',w,d,type:g('type'),color};
+    if(l)Object.assign(l,data);else S.library.push({id:uid(),...data});commit();renderPanel()},l?'Speichern':'Anlegen');
+  const mark=()=>el.querySelectorAll('#msw [data-c]').forEach(b=>b.setAttribute('aria-pressed',b.dataset.c===color));
+  el.querySelector('#msw').addEventListener('click',ev=>{const b=ev.target.closest('[data-c]');if(b){color=b.dataset.c;el.querySelector('#mcol').value=color;mark()}});
+  el.querySelector('#mcol').addEventListener('input',ev=>{color=ev.target.value;mark()});
+  el.querySelector('#mdel')?.addEventListener('click',()=>{S.library=S.library.filter(x=>x!==l);commit();renderPanel();$('#modal').classList.remove('open')})}
+function roomMenu(){const r=room();const {el,close}=modal(`<h2>${esc(r.name)}</h2><div class="stack">
+    <button class="btn" data-ra="new">Neuen Raum anlegen</button><button class="btn" data-ra="dup">Raum duplizieren</button>
+    <button class="btn" data-ra="ren">Umbenennen</button><button class="btn danger" data-ra="del" ${S.rooms.length<2?'disabled':''}>Raum löschen</button></div>`);
+  el.querySelector('.stack').addEventListener('click',e=>{const b=e.target.closest('[data-ra]');if(!b)return;close();const a=b.dataset.ra;
+    if(a==='new')modal(`<h2>Neuer Raum</h2><div class="row"><label class="f">Name<input name="n" value="Zimmer ${S.rooms.length+1}"></label></div><div class="grid2"><label class="f unit" data-u="cm">Breite<input type="number" name="w" value="400"></label><label class="f unit" data-u="cm">Länge<input type="number" name="l" value="350"></label></div>`,m=>{
+      const q=n=>m.querySelector(`[name=${n}]`).value,nr=newRoom(q('n').trim()||'Raum',Math.max(50,+q('w')||400),Math.max(50,+q('l')||350));S.rooms.push(nr);S.activeRoom=nr.id;UI.sel=null;commit();renderAll();fit()},'Anlegen');
+    if(a==='dup'){const c=JSON.parse(JSON.stringify(r));c.id=uid();c.name=r.name+' (Kopie)';S.rooms.push(c);S.activeRoom=c.id;UI.sel=null;commit();renderAll();fit()}
+    if(a==='ren')modal(`<h2>Umbenennen</h2><div class="row"><label class="f">Name<input name="n" value="${esc(r.name)}"></label></div>`,m=>{r.name=m.querySelector('[name=n]').value.trim()||r.name;commit();renderAll()});
+    if(a==='del')confirmBox(`„${r.name}“ löschen?`,'Löschen',()=>{S.rooms=S.rooms.filter(x=>x!==r);S.activeRoom=S.rooms[0].id;UI.sel=null;commit();renderAll();fit()});
+  })}
+function variantMenu(){const r=room(),l=layout();const {el,close}=modal(`<h2>${esc(l.name)}</h2><div class="row"><label class="f">Name<input name="n" value="${esc(l.name)}"></label></div>
+  <div class="stack"><button class="btn danger" data-va="del" ${r.layouts.length<2?'disabled':''}>Variante löschen</button></div>`,m=>{l.name=m.querySelector('[name=n]').value.trim()||l.name;commit();renderVariants()});
+  el.querySelector('[data-va]').addEventListener('click',()=>{close();r.layouts=r.layouts.filter(x=>x!==l);r.activeLayout=r.layouts[0].id;UI.sel=null;commit();renderAll()})}
+function mainMenu(){const st=S.settings;const {el,close}=modal(`<h2>Einstellungen</h2>
+  <div class="grid2"><label class="f">Raster<select id="sg">${[1,5,10,25].map(g=>`<option value="${g}"${g===st.grid?' selected':''}>${g} cm</option>`).join('')}</select></label>
+  <label class="f">Einrasten<select id="ss"><option value="1"${st.snap?' selected':''}>An</option><option value="0"${!st.snap?' selected':''}>Aus</option></select></label></div>
+  <h3>Daten</h3><p class="hint">Alles wird automatisch auf diesem Gerät gespeichert. Mit dem GitHub-Sync hast du denselben Stand auf allen Geräten. Eine Exportdatei eignet sich als zusätzliche Sicherung, zum Beispiel in OneDrive.</p>
+  <div class="stack"><button class="btn" id="gsy">GitHub-Sync</button><button class="btn" id="exp">Als Datei exportieren</button><button class="btn" id="imp">Datei importieren</button><button class="btn danger" id="rst">Alles zurücksetzen</button></div>`);
+  el.querySelector('#sg').onchange=e=>{st.grid=+e.target.value;commit()};el.querySelector('#ss').onchange=e=>{st.snap=e.target.value==='1';commit()};
+  el.querySelector('#gsy').onclick=()=>{close();syncMenu()};el.querySelector('#exp').onclick=()=>{close();exportData()};el.querySelector('#imp').onclick=()=>{close();$('#fileIn').click()};
+  el.querySelector('#rst').onclick=()=>{close();confirmBox('Alle Räume und Möbel zurücksetzen?','Zurücksetzen',()=>{S=defaultState();UI.sel=null;commit();renderAll();fit()})}}
+async function exportData(){const json=JSON.stringify(S,null,1),name=`raumplaner-${new Date().toISOString().slice(0,10)}.json`;
+  let dl=null;try{dl=window.claude?.use?await window.claude.use('downloads'):null}catch(e){}
+  if(dl){try{await dl.save({filename:name,data:json});return}catch(e){if(e?.code==='declined')return}}
+  const url=URL.createObjectURL(new Blob([json],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
+$('#fileIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!valid(s))throw 0;delete s.updatedAt;S=s;S.settings=S.settings||{grid:5,snap:true};UI.sel=null;commit();renderAll();fit()}
+  catch(_){modal(`<h2>Import nicht möglich</h2><p class="hint">Die Datei ist kein Raumplaner-Export. Wähle eine .json-Datei, die du hier exportiert hast.</p>`)}};rd.readAsText(f);e.target.value=''});
+
+/* ---------- pointer ---------- */
+const ptrs=new Map();let drag=null,pinch=null;
+function pinchStart(){const [a,b]=[...ptrs.values()];pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1,s0:UI.view.s,w:toWorld((a.x+b.x)/2,(a.y+b.y)/2)}}
+svg.addEventListener('pointerdown',e=>{svg.setPointerCapture(e.pointerId);ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(ptrs.size===2){if(drag?.moved&&drag.type!=='pan')commit();drag=null;pinchStart();return}if(ptrs.size>2)return;
+  const t=e.target.closest('[data-kind]'),w=toWorld(e.clientX,e.clientY),r=room();
+  const base={sx:e.clientX,sy:e.clientY,moved:false};drag={...base,type:'pan',tx0:UI.view.tx,ty0:UI.view.ty};
+  if(!t)return;const k=t.dataset.kind;
+  if(k==='item'&&UI.mode==='furn'){const it=items().find(i=>i.id===t.dataset.id);if(!it)return;if(UI.sel?.id!==it.id)select({kind:'item',id:it.id});drag={...base,type:'item',it,ox:w.x-it.x,oy:w.y-it.y}}
+  else if(k==='rot'){const it=selItem();if(it)drag={...base,type:'rot',it,r0:it.rot,a0:Math.atan2(w.y-it.y,w.x-it.x)*180/Math.PI}}
+  else if(k==='vtx'){const i=+t.dataset.i;select({kind:'vtx',i});drag={...base,type:'vtx',i}}
+  else if(k==='wall'){const i=+t.dataset.i,W=walls(r)[i];select({kind:'wall',i});const j=(i+1)%r.pts.length;
+    drag={...base,type:'wall',i,j,a0:{...r.pts[i]},b0:{...r.pts[j]},n:{x:-W.uy,y:W.ux},w0:w}}
+  else if(k==='op'){const o=r.openings.find(x=>x.id===t.dataset.id);if(!o)return;select({kind:'op',id:o.id});const W=walls(r)[o.wall];
+    drag={...base,type:'op',o,grab:(w.x-W.a.x)*W.ux+(w.y-W.a.y)*W.uy-o.off}}});
+svg.addEventListener('pointermove',e=>{if(!ptrs.has(e.pointerId))return;ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch&&ptrs.size>=2){const [a,b]=[...ptrs.values()],d=Math.hypot(a.x-b.x,a.y-b.y),m={x:(a.x+b.x)/2,y:(a.y+b.y)/2},bx=svg.getBoundingClientRect(),v=UI.view;
+    v.s=clamp(pinch.s0*d/pinch.d,0.05,20);v.tx=m.x-bx.left-pinch.w.x*v.s;v.ty=m.y-bx.top-pinch.w.y*v.s;render();return}
+  if(!drag)return;if(!drag.moved&&Math.hypot(e.clientX-drag.sx,e.clientY-drag.sy)<5)return;drag.moved=true;
+  const w=toWorld(e.clientX,e.clientY),r=room(),g=S.settings.grid;
+  switch(drag.type){
+    case 'pan':UI.view.tx=drag.tx0+e.clientX-drag.sx;UI.view.ty=drag.ty0+e.clientY-drag.sy;break;
+    case 'item':drag.it.x=w.x-drag.ox;drag.it.y=w.y-drag.oy;snapItem(drag.it);break;
+    case 'rot':{const it=drag.it;let a=drag.r0+Math.atan2(w.y-it.y,w.x-it.x)*180/Math.PI-drag.a0;a=S.settings.snap?round(a,15):Math.round(a);it.rot=((a%360)+360)%360;break}
+    case 'vtx':{const p={x:w.x,y:w.y};snapPt(p,drag.i);Object.assign(r.pts[drag.i],p);clampOpenings(r);break}
+    case 'wall':{let t=(w.x-drag.w0.x)*drag.n.x+(w.y-drag.w0.y)*drag.n.y;if(S.settings.snap&&g)t=round(t,g);
+      r.pts[drag.i]={x:drag.a0.x+drag.n.x*t,y:drag.a0.y+drag.n.y*t};r.pts[drag.j]={x:drag.b0.x+drag.n.x*t,y:drag.b0.y+drag.n.y*t};clampOpenings(r);break}
+    case 'op':{const W=walls(r)[drag.o.wall];if(!W)break;let off=(w.x-W.a.x)*W.ux+(w.y-W.a.y)*W.uy-drag.grab;if(S.settings.snap&&g)off=round(off,g);drag.o.off=clamp(off,0,W.len-drag.o.w);break}}
+  render()});
+function ptrEnd(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
+  if(pinch){if(ptrs.size<2)pinch=null;drag=null;return}
+  if(!drag)return;const d=drag;drag=null;
+  if(d.type==='pan'&&!d.moved&&UI.sel)select(null);
+  else if(d.moved&&d.type!=='pan'){commit();renderPanel();render()}}
+svg.addEventListener('pointerup',ptrEnd);svg.addEventListener('pointercancel',ptrEnd);
+svg.addEventListener('wheel',e=>{e.preventDefault();zoomAt(e.clientX,e.clientY,UI.view.s*Math.exp(-e.deltaY*0.0015))},{passive:false});
+
+/* ---------- wiring ---------- */
+const panel=$('#panel');
+panel.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&!b.disabled)act(b)});
+panel.addEventListener('input',e=>{if(e.target.dataset.f)applyField(e.target,e.target.tagName==='SELECT'||e.target.type==='color')});
+panel.addEventListener('change',e=>{if(e.target.dataset.f)applyField(e.target,true)});
+panel.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.dataset.f)e.target.blur()});
+document.querySelectorAll('.seg button[data-mode]').forEach(b=>b.onclick=()=>{UI.mode=b.dataset.mode;UI.sel=null;updBar();renderPanel();render()});
+$('#undo').onclick=undo;$('#redo').onclick=redo;$('#fit').onclick=fit;$('#menu').onclick=mainMenu;$('#roomMenu').onclick=roomMenu;
+$('#roomSel').onchange=e=>{S.activeRoom=e.target.value;UI.sel=null;commit();renderAll();fit()};
+$('#variants').addEventListener('click',e=>{const b=e.target.closest('[data-lay]');if(!b)return;const r=room(),id=b.dataset.lay;
+  if(id==='+'){const cur=layout(),n={id:uid(),name:'Variante '+String.fromCharCode(65+r.layouts.length),items:cur.items.map(i=>({...i,id:uid()}))};r.layouts.push(n);r.activeLayout=n.id;UI.sel=null;commit();renderAll()}
+  else if(id===r.activeLayout)variantMenu();else{r.activeLayout=id;UI.sel=null;commit();renderAll()}});
+document.addEventListener('keydown',e=>{const tag=e.target.tagName;if(tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA'||$('#modal').classList.contains('open'))return;
+  if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}
+  else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}
+  else if(e.key==='Delete'||e.key==='Backspace')deleteSel();
+  else if(e.key.toLowerCase()==='r'&&selItem()){const it=selItem();it.rot=(it.rot+90)%360;commit();renderPanel();render()}
+  else if(e.key==='Escape')select(null)});
+let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(render,50)}).observe(stage);
+$('#sync').onclick=syncMenu;
+document.addEventListener('visibilitychange',()=>{if(!sync)return;if(document.visibilityState==='hidden'){if(SY.timer)push()}else syncNow()});
+renderAll();requestAnimationFrame(fit);
+if(sync){setSync('busy','Lädt aus GitHub …');syncNow()}else setSync('off','Nur auf diesem Gerät gespeichert');
+if(/^https?:$/.test(location.protocol)&&!/claude\.ai|claudeusercontent/.test(location.host)){
+  try{navigator.storage?.persist?.()}catch(e){}
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{})}
+})();
+</script>
+</body>
+</html>

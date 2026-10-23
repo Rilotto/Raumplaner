@@ -14,6 +14,8 @@ Keiner der Shops hat eine öffentliche Schnittstelle für Produktdaten. Deshalb 
 - [ ] Eher nicht: automatischer Import per Link – bräuchte einen eigenen Server, nutzt inoffizielle Schnittstellen und kann jederzeit kaputtgehen
 
 ## Erledigt
+- [x] Möbel fixieren; Heizkörper als eigene Art (bleibt beim Anordnen stehen, nichts Hohes davor)
+- [x] Größe durch Ziehen als Option in den Einstellungen (standardmäßig aus)
 - [x] Auto-Anordnung als neue Variante „Vorschlag“, mit „Anderen Vorschlag zeigen“
 - [x] Größe per Griff am Möbel ändern
 - [x] Maßband-Werkzeug

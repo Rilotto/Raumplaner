@@ -168,7 +168,8 @@ const uid=()=>Math.random().toString(36).slice(2,10);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const KEY='raumplaner.v1';
 const PALETTE=['#E3B23C','#6C9A8B','#D1603D','#4F6D7A','#A26769','#8FB8DE','#C9ADA7','#7A9E3F','#9A7AA0','#B8B08D'];
-const TYPES=['Bett','Sofa','Schrank','Kommode','Regal','Tisch','Schreibtisch','Stuhl','Sonstiges'];
+const TYPES=['Bett','Sofa','Schrank','Kommode','Regal','Tisch','Schreibtisch','Stuhl','Heizkörper','Sonstiges'];
+const FIXED_TYPES=['Heizkörper'];
 const round=(v,g)=>Math.round(v/g)*g;
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const fmt=v=>String(Math.round(v));
@@ -295,11 +296,13 @@ function clampOpenings(r){const W=walls(r);r.openings=r.openings.filter(o=>W[o.w
 function conflicts(){const r=room(),its=items(),out=new Map();const add=(id,m)=>{if(!out.has(id))out.set(id,[]);out.get(id).push(m)};
   const polys=its.map(it=>corners(it));const doors=r.openings.filter(o=>o.type==='door').map(o=>opGeom(r,o)).filter(Boolean);
   const wins=r.openings.filter(o=>o.type==='window').map(o=>winZone(r,o,20)).filter(Boolean);
+  const heats=its.filter(h=>h.type==='Heizkörper').flatMap(h=>[{id:h.id,P:zone(h,-h.w/2,h.d/2,h.w/2,h.d/2+30)},{id:h.id,P:zone(h,-h.w/2,-h.d/2-30,h.w/2,-h.d/2)}]);
   its.forEach((it,i)=>{
     if(corners(it,0.5).some(p=>!inside(p,r.pts))||r.pts.some(p=>inside(p,corners(it,0.5))))add(it.id,'Ragt über eine Wand');
     for(let j=0;j<its.length;j++)if(j!==i&&sat(polys[i],polys[j]))add(it.id,'Überschneidet sich mit „'+its[j].name+'“');
     if(doors.some(g=>sat(polys[i],g.sector)))add(it.id,'Steht im Schwenkbereich einer Tür');
     if(TALL.includes(it.type)&&wins.some(z=>sat(polys[i],z)))add(it.id,'Steht vor einem Fenster');
+    if(TALL.includes(it.type)&&heats.some(z=>z.id!==it.id&&sat(polys[i],z.P)))add(it.id,'Steht vor einem Heizkörper');
   });return out}
 function rayHit(o,d,segs,min=0.01){let best=Infinity;for(const [a,b] of segs){const ex=b.x-a.x,ey=b.y-a.y,den=d.x*ey-d.y*ex;if(Math.abs(den)<1e-9)continue;
   const ax=a.x-o.x,ay=a.y-o.y,t=(ax*ey-ay*ex)/den,u=(ax*d.y-ay*d.x)/den;if(t>min&&u>=-1e-6&&u<=1+1e-6)best=Math.min(best,t)}return best}
@@ -353,7 +356,9 @@ function arrange(seed){
   const placed=[],failed=[];const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y),near=(p,L)=>L.length?Math.min(...L.map(q=>dist(p,q))):0;
   const hits=(P,L)=>L.some(Q=>sat(P,Q));
   function deadPenalty(c){const g=sideGaps(c,bodies,r);let p=0;for(const k of ['l','r','b'])if(isFinite(g[k])&&g[k]>3&&g[k]<45)p+=40;return {p,g}}
-  const order=src.map((it,i)=>({it,i,ru:RULES[it.type]||RULES.Sonstiges})).sort((a,b)=>a.ru.prio-b.ru.prio||b.it.w*b.it.d-a.it.w*a.it.d);
+  const fixed=i=>i.locked||FIXED_TYPES.includes(i.type);
+  for(const it of src.filter(fixed)){placed.push(it);bodies.push(corners(it));if(it.type==='Heizkörper')winsZ.push(zone(it,-it.w/2,it.d/2,it.w/2,it.d/2+30),zone(it,-it.w/2,-it.d/2-30,it.w/2,-it.d/2))}
+  const order=src.filter(i=>!fixed(i)).map((it,i)=>({it,i,ru:RULES[it.type]||RULES.Sonstiges})).sort((a,b)=>a.ru.prio-b.ru.prio||b.it.w*b.it.d-a.it.w*a.it.d);
   const doorZ=reserved.slice();
   function bodyOk2(c,ru,relax,ignoreRes){const P=corners(c,0.5);if(!polyIn(P,r)||hits(P,bodies))return false;if(!ignoreRes&&hits(P,relax?doorZ:reserved))return false;if(ru.noWin&&!relax&&hits(P,winsZ))return false;return true}
   function tryPlace(it,ru,relax){let best=null;const consider=(c,extra,zones)=>{const sc=extra+rand()*noise;if(!best||sc<best.sc)best={c,sc,zones}};
@@ -390,7 +395,7 @@ function autoArrange(){const r=room(),cur=layout();if(!items().length){modal('<h
   UI.seed=(UI.seed||0);const res=arrange(UI.seed);UI.seed++;
   const n=r.layouts.filter(l=>/^Vorschlag/.test(l.name)).length+1,lay={id:uid(),name:'Vorschlag '+n,items:[...res.placed,...res.failed].map(i=>({...i,id:uid()}))};
   r.layouts.push(lay);r.activeLayout=lay.id;UI.sel=null;commit();renderAll();
-  const tips=['Bett mit dem Kopfteil an die Wand, mit freier Seite zum Einsteigen','Schränke und Regale in Ecken und nicht vor Fenstern','Platz vor Schränken, Schreibtisch und Sofa','Türbereich bleibt frei'];
+  const tips=['Fixierte Möbel und Heizkörper bleiben, wo sie sind','Bett mit dem Kopfteil an die Wand, mit freier Seite zum Einsteigen','Schränke und Regale in Ecken, nicht vor Fenstern oder Heizkörpern','Platz vor Schränken, Schreibtisch und Sofa','Türbereich bleibt frei'];
   modal(`<h2>${esc(lay.name)} ist fertig</h2>${res.failed.length?`<div class="warnbox">Kein passender Platz für: ${res.failed.map(i=>esc(i.name)).join(', ')}. Diese Möbel stehen an ihrer alten Stelle.</div>`:''}
     <p class="hint">Dabei wird beachtet:</p><ul class="hint" style="margin:0 0 12px;padding-left:20px">${tips.map(t=>`<li>${t}</li>`).join('')}</ul>
     <p class="hint">Deine bisherige Anordnung bleibt als „${esc(cur.name)}“ erhalten. Du kannst den Vorschlag frei weiter anpassen.</p>
@@ -426,21 +431,21 @@ function sceneSvg(v,VW,VH,exp){
   // items
   const cf=conflicts();
   for(const it of items()){const warn=!exp&&cf.has(it.id),rot=it.rot;let tr=((rot%360)+360)%360,flip=tr>90&&tr<=270?180:0;
-    const sw=it.w*s,fs=clamp(Math.min(sw/7,it.d*s/2.6),0,13),show=sw>34&&it.d*s>18;
+    const sw=it.w*s,fs=clamp(Math.min(sw/7,it.d*s/2.6),0,13),show=sw>34&&it.d*s>18,lockG=it.locked&&sw>26&&it.d*s>22?`<g transform="translate(${-it.w/2+px(10)} ${-it.d/2+px(11)}) scale(${1/s})" opacity=".75" pointer-events="none"><rect x="-5" y="-1" width="10" height="8" rx="1.5" fill="#1b1f22"/><path d="M-3 -1v-2.5a3 3 0 0 1 6 0V-1" fill="none" stroke="#1b1f22" stroke-width="1.6"/></g>`:'';
     const maxC=Math.max(3,Math.floor(sw/(fs*.55)));let nm=it.name;if(nm.length>maxC)nm=nm.slice(0,maxC-1)+'…';
     h+=`<g class="it${warn?' warn':''}${plan?' ghost':''}" data-kind="item" data-id="${it.id}" transform="translate(${it.x} ${it.y}) rotate(${rot})">`+
       `<rect x="${-it.w/2}" y="${-it.d/2}" width="${it.w}" height="${it.d}" rx="${px(2)}" fill="${esc(it.color)}" fill-opacity=".88" stroke="${esc(it.color)}" vector-effect="non-scaling-stroke" style="filter:brightness(.7)"/>`+
       `<rect x="${-it.w/2}" y="${-it.d/2}" width="${it.w}" height="${it.d}" rx="${px(2)}" fill="${esc(it.color)}" fill-opacity=".88" stroke="none"/>`+
       (show?`<g transform="rotate(${flip})"><text text-anchor="middle" font-size="${px(fs)}" font-weight="600" y="${it.d*s>40?-px(fs*.25):px(fs*.35)}">${esc(nm)}</text>`+
-        (it.d*s>40?`<text text-anchor="middle" font-size="${px(fs*.85)}" y="${px(fs*1.05)}" opacity=".75">${fmt(it.w)} × ${fmt(it.d)}</text>`:'')+`</g>`:'')+`</g>`}
+        (it.d*s>40?`<text text-anchor="middle" font-size="${px(fs*.85)}" y="${px(fs*1.05)}" opacity=".75">${fmt(it.w)} × ${fmt(it.d)}</text>`:'')+`</g>`:'')+lockG+`</g>`}
   h+=doorsSvg;
   // selected item: outline, rotate handle, distances
   const si=!exp&&!plan&&selItem();
   if(si){const c=corners(si,-px(3));h+=`<polygon class="sel" vector-effect="non-scaling-stroke" points="${c.map(p=>p.x+','+p.y).join(' ')}"/>`;
     const t=si.rot*Math.PI/180,cs=Math.cos(t),sn=Math.sin(t),loc=(lx,ly)=>({x:si.x+lx*cs-ly*sn,y:si.y+lx*sn+ly*cs}),top=loc(si.w/2,-si.d/2),hd=loc(si.w/2+px(24),-si.d/2-px(24));
-    h+=`<line class="sel" vector-effect="non-scaling-stroke" x1="${top.x}" y1="${top.y}" x2="${hd.x}" y2="${hd.y}"/><circle class="handle" data-kind="rot" vector-effect="non-scaling-stroke" cx="${hd.x}" cy="${hd.y}" r="${px(13)}"/>`+
+    if(!si.locked)h+=`<line class="sel" vector-effect="non-scaling-stroke" x1="${top.x}" y1="${top.y}" x2="${hd.x}" y2="${hd.y}"/><circle class="handle" data-kind="rot" vector-effect="non-scaling-stroke" cx="${hd.x}" cy="${hd.y}" r="${px(13)}"/>`+
       `<path d="M${hd.x-px(5)} ${hd.y+px(1)}a${px(5)} ${px(5)} 0 1 1 ${px(5)} ${px(5)}" fill="none" stroke="var(--accent)" stroke-width="1.6" vector-effect="non-scaling-stroke" pointer-events="none"/>`;
-    for(const [ax,sg,lx,ly] of [['w',1,si.w/2,0],['w',-1,-si.w/2,0],['d',1,0,si.d/2],['d',-1,0,-si.d/2]]){const p=loc(lx,ly),long=ax==='w';
+    if(!si.locked&&S.settings.resize)for(const [ax,sg,lx,ly] of [['w',1,si.w/2,0],['w',-1,-si.w/2,0],['d',1,0,si.d/2],['d',-1,0,-si.d/2]]){const p=loc(lx,ly),long=ax==='w';
       h+=`<rect class="rsz" x="${p.x-px(long?4:9)}" y="${p.y-px(long?9:4)}" width="${px(long?8:18)}" height="${px(long?18:8)}" rx="${px(3)}" vector-effect="non-scaling-stroke" transform="rotate(${si.rot} ${p.x} ${p.y})"/>`+
         `<circle class="rhit" data-kind="rsz" data-ax="${ax}" data-sg="${sg}" cx="${p.x}" cy="${p.y}" r="${px(20)}"/>`}
     h+=dims(si,W,px)}
@@ -492,12 +497,14 @@ function typeSel(cur,sc){return `<label class="f">Art<select data-f="type" data-
 function renderPanel(){const p=$('#panel'),r=room();let h='';
   if(UI.mode==='furn'){const it=selItem();
     if(it){const cf=conflicts().get(it.id);
-      h=`<h2>${esc(it.name)}</h2>${cf?cf.map(m=>`<div class="warnbox">${esc(m)}</div>`).join(''):''}
+      const lk=it.locked?'disabled':'';
+      h=`<div class="row" style="align-items:center;flex-wrap:nowrap"><h2 style="margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</h2><button class="btn" data-act="lock" aria-pressed="${!!it.locked}">${it.locked?'Fixiert':'Fixieren'}</button></div>
+      ${it.locked?'<p class="hint">Fixiert: Lage, Größe und Drehung sind gesperrt, auch beim automatischen Anordnen.</p>':''}${cf?cf.map(m=>`<div class="warnbox">${esc(m)}</div>`).join(''):''}
       <div class="row"><label class="f">Name<input data-f="name" data-scope="item" value="${esc(it.name)}"></label></div>
-      <div class="grid2">${num('Breite','w',it.w,'item')}${num('Tiefe','d',it.d,'item')}</div>
-      <div class="row" style="margin-top:10px">${num('Drehung','rot',it.rot,'item','°')}<button class="btn" data-act="rot" data-v="-90">−90°</button><button class="btn" data-act="rot" data-v="90">+90°</button></div>
+      <div class="grid2">${num('Breite','w',it.w,'item','cm',lk)}${num('Tiefe','d',it.d,'item','cm',lk)}</div>
+      <div class="row" style="margin-top:10px">${num('Drehung','rot',it.rot,'item','°',lk)}<button class="btn" data-act="rot" data-v="-90" ${lk}>−90°</button><button class="btn" data-act="rot" data-v="90" ${lk}>+90°</button></div>
       <h3>Abstand zur Wand oder zum nächsten Möbel</h3>
-      <div class="grid2">${(()=>{const g=gaps(it),L={gl:'Links',gr:'Rechts',gt:'Oben',gb:'Unten'};return ['gl','gr','gt','gb'].map(k=>g[k].t===null?`<label class="f">${L[k]}<input disabled value="–"></label>`:num(L[k],k,g[k].t,'gap')).join('')})()}</div>
+      <div class="grid2">${(()=>{const g=gaps(it),L={gl:'Links',gr:'Rechts',gt:'Oben',gb:'Unten'};return ['gl','gr','gt','gb'].map(k=>g[k].t===null?`<label class="f">${L[k]}<input disabled value="–"></label>`:num(L[k],k,g[k].t,'gap','cm',lk)).join('')})()}</div>
       <div class="row" style="margin-top:10px">${typeSel(it.type,'item')}</div>
       <h3>Farbe</h3>${swatches(it.color,'item')}
       <div class="row"><button class="btn" data-act="dup">Duplizieren</button><button class="btn" data-act="tolib">In Bibliothek speichern</button></div>
@@ -545,7 +552,8 @@ function placeFromLib(l){const r=room(),bb=bbox(r.pts);let c={x:(bb.minX+bb.maxX
 function act(b){const a=b.dataset.act,r=room(),it=selItem();
   switch(a){
     case 'color':if(it){it.color=b.dataset.c;markSw(it.color);commit();render()}break;
-    case 'rot':if(it){it.rot=((it.rot+ +b.dataset.v)%360+360)%360;snapItem(it);commit();renderPanel();render()}break;
+    case 'lock':if(it){it.locked=!it.locked;if(!it.locked)delete it.locked;commit();renderPanel();render()}break;
+    case 'rot':if(it&&!it.locked){it.rot=((it.rot+ +b.dataset.v)%360+360)%360;snapItem(it);commit();renderPanel();render()}break;
     case 'dup':if(it){const c={...it,id:uid(),x:it.x+20,y:it.y+20};items().push(c);UI.sel={kind:'item',id:c.id};commit();renderPanel();render()}break;
     case 'tolib':if(it){S.library.push({id:uid(),name:it.name,w:it.w,d:it.d,color:it.color,type:it.type});commit();b.textContent='Gespeichert';b.disabled=true}break;
     case 'del':deleteSel();break;
@@ -607,12 +615,13 @@ function variantMenu(){const r=room(),l=layout();const {el,close}=modal(`<h2>${e
   el.querySelector('[data-va]').addEventListener('click',()=>{close();r.layouts=r.layouts.filter(x=>x!==l);r.activeLayout=r.layouts[0].id;UI.sel=null;commit();renderAll()})}
 function mainMenu(){const st=S.settings;const {el,close}=modal(`<h2>Einstellungen</h2>
   <div class="grid2"><label class="f">Raster<select id="sg">${[1,5,10,25].map(g=>`<option value="${g}"${g===st.grid?' selected':''}>${g} cm</option>`).join('')}</select></label>
+  <label class="f">Größe durch Ziehen<select id="sr"><option value="0"${!st.resize?' selected':''}>Aus</option><option value="1"${st.resize?' selected':''}>An</option></select></label>
   <label class="f">Einrasten<select id="ss"><option value="1"${st.snap?' selected':''}>An</option><option value="0"${!st.snap?' selected':''}>Aus</option></select></label></div>
   <h3>Plan teilen</h3><p class="hint">Zeigt den aktuellen Raum und die Variante mit Möbelliste.</p>
   <div class="stack" style="margin-bottom:6px"><button class="btn" id="eimg">Als Bild speichern</button><button class="btn" id="epdf">Als PDF drucken</button></div>
   <h3>Daten</h3><p class="hint">${sync?"Wird automatisch in GitHub gesichert. Eine Sicherung in OneDrive ist ein zusätzliches Extra.":"Alles wird automatisch auf diesem Gerät gespeichert. Mit dem GitHub-Sync hast du denselben Stand auf allen Geräten."}</p>
   <div class="stack"><button class="btn" id="gsy">GitHub-Sync</button><button class="btn" id="exp">Sicherung speichern, z. B. in OneDrive</button><button class="btn" id="imp">Sicherung wiederherstellen</button><button class="btn danger" id="rst">Alles zurücksetzen</button></div>`);
-  el.querySelector('#sg').onchange=e=>{st.grid=+e.target.value;commit()};el.querySelector('#ss').onchange=e=>{st.snap=e.target.value==='1';commit()};
+  el.querySelector('#sg').onchange=e=>{st.grid=+e.target.value;commit()};el.querySelector('#sr').onchange=e=>{st.resize=e.target.value==='1';commit();render()};el.querySelector('#ss').onchange=e=>{st.snap=e.target.value==='1';commit()};
   el.querySelector('#eimg').onclick=()=>{close();exportImage()};el.querySelector('#epdf').onclick=()=>{close();printPlan()};el.querySelector('#gsy').onclick=()=>{close();syncMenu()};el.querySelector('#exp').onclick=()=>{close();exportData()};el.querySelector('#imp').onclick=()=>{close();$('#fileIn').click()};
   el.querySelector('#rst').onclick=()=>{close();confirmBox('Alle Räume und Möbel zurücksetzen?','Zurücksetzen',()=>{S=defaultState();UI.sel=null;commit();renderAll();fit()})}}
 const LIGHT={paper:'#E4E9E8',floor:'#FFFFFF',ink:'#22282C',muted:'#5E6A6F',wall:'#2C3338',grid:'#CED6D4',grid2:'#B5C0BD',accent:'#1F5FBF','accent-ink':'#FFFFFF',warn:'#C8412F',panel:'#F4F6F5',line:'#D5DCDA',field:'#FFFFFF',f:"Barlow,Roboto,Arial,sans-serif",fc:"'Barlow Condensed','Roboto Condensed',Arial,sans-serif"};
@@ -659,7 +668,7 @@ svg.addEventListener('pointerdown',e=>{svg.setPointerCapture(e.pointerId);ptrs.s
   const base={sx:e.clientX,sy:e.clientY,moved:false};drag={...base,type:'pan',tx0:UI.view.tx,ty0:UI.view.ty};
   if(UI.tool==='meas'){const p=measSnap(w);drag={...base,type:'meas',a:p,prev:UI.meas};UI.meas={a:p,b:p};return}
   if(!t)return;const k=t.dataset.kind;
-  if(k==='item'&&UI.mode==='furn'){const it=items().find(i=>i.id===t.dataset.id);if(!it)return;if(UI.sel?.id!==it.id)select({kind:'item',id:it.id});drag={...base,type:'item',it,ox:w.x-it.x,oy:w.y-it.y}}
+  if(k==='item'&&UI.mode==='furn'){const it=items().find(i=>i.id===t.dataset.id);if(!it)return;if(UI.sel?.id!==it.id)select({kind:'item',id:it.id});if(!it.locked)drag={...base,type:'item',it,ox:w.x-it.x,oy:w.y-it.y}}
   else if(k==='rsz'){const it=selItem();if(it)drag={...base,type:'rsz',it,ax:t.dataset.ax,sg:+t.dataset.sg,c0:{x:it.x,y:it.y},w0:it.w,d0:it.d}}
   else if(k==='rot'){const it=selItem();if(it)drag={...base,type:'rot',it,r0:it.rot,a0:Math.atan2(w.y-it.y,w.x-it.x)*180/Math.PI}}
   else if(k==='vtx'){const i=+t.dataset.i;select({kind:'vtx',i});drag={...base,type:'vtx',i}}
@@ -711,9 +720,9 @@ document.addEventListener('keydown',e=>{const tag=e.target.tagName;if(tag==='INP
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo()}
   else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo()}
   else if(e.key==='Delete'||e.key==='Backspace')deleteSel();
-  else if(e.key.toLowerCase()==='r'&&selItem()){const it=selItem();it.rot=(it.rot+90)%360;commit();renderPanel();render()}
+  else if(e.key.toLowerCase()==='r'&&selItem()&&!selItem().locked){const it=selItem();it.rot=(it.rot+90)%360;commit();renderPanel();render()}
   else if(e.key==='Escape'){if(UI.tool)$('#meas').click();else select(null)}
-  else if(e.key.startsWith('Arrow')&&selItem()){e.preventDefault();const it=selItem(),st=e.shiftKey?10:1;
+  else if(e.key.startsWith('Arrow')&&selItem()&&!selItem().locked){e.preventDefault();const it=selItem(),st=e.shiftKey?10:1;
     if(e.key==='ArrowLeft')it.x-=st;if(e.key==='ArrowRight')it.x+=st;if(e.key==='ArrowUp')it.y-=st;if(e.key==='ArrowDown')it.y+=st;commit();renderPanel();render()}});
 let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(render,50)}).observe(stage);
 $('#sync').onclick=syncMenu;

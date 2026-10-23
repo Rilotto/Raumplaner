@@ -1,6 +1,6 @@
 // Offline-Cache für den Raumplaner. Die Seite selbst kommt zuerst aus dem Netz (damit Updates ankommen),
 // alles andere aus dem Cache. GitHub-API-Aufrufe werden nie gecacht.
-const CACHE = 'raumplaner-v3';
+const CACHE = 'raumplaner-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

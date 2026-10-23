@@ -141,7 +141,7 @@ input[type=color].sw{background:none;overflow:hidden;cursor:pointer}
   <aside id="panel"></aside>
 </main>
 <div id="modal" role="dialog" aria-modal="true"></div>
-<input type="file" id="fileIn" accept=".json,application/json" hidden>
+<input type="file" id="fileIn" hidden>
 
 <script>
 (()=>{
@@ -494,17 +494,20 @@ function variantMenu(){const r=room(),l=layout();const {el,close}=modal(`<h2>${e
 function mainMenu(){const st=S.settings;const {el,close}=modal(`<h2>Einstellungen</h2>
   <div class="grid2"><label class="f">Raster<select id="sg">${[1,5,10,25].map(g=>`<option value="${g}"${g===st.grid?' selected':''}>${g} cm</option>`).join('')}</select></label>
   <label class="f">Einrasten<select id="ss"><option value="1"${st.snap?' selected':''}>An</option><option value="0"${!st.snap?' selected':''}>Aus</option></select></label></div>
-  <h3>Daten</h3><p class="hint">Alles wird automatisch auf diesem Gerät gespeichert. Mit dem GitHub-Sync hast du denselben Stand auf allen Geräten. Eine Exportdatei eignet sich als zusätzliche Sicherung, zum Beispiel in OneDrive.</p>
-  <div class="stack"><button class="btn" id="gsy">GitHub-Sync</button><button class="btn" id="exp">Als Datei exportieren</button><button class="btn" id="imp">Datei importieren</button><button class="btn danger" id="rst">Alles zurücksetzen</button></div>`);
+  <h3>Daten</h3><p class="hint">${sync?"Wird automatisch in GitHub gesichert. Eine Sicherung in OneDrive ist ein zusätzliches Extra.":"Alles wird automatisch auf diesem Gerät gespeichert. Mit dem GitHub-Sync hast du denselben Stand auf allen Geräten."}</p>
+  <div class="stack"><button class="btn" id="gsy">GitHub-Sync</button><button class="btn" id="exp">Sicherung speichern, z. B. in OneDrive</button><button class="btn" id="imp">Sicherung wiederherstellen</button><button class="btn danger" id="rst">Alles zurücksetzen</button></div>`);
   el.querySelector('#sg').onchange=e=>{st.grid=+e.target.value;commit()};el.querySelector('#ss').onchange=e=>{st.snap=e.target.value==='1';commit()};
   el.querySelector('#gsy').onclick=()=>{close();syncMenu()};el.querySelector('#exp').onclick=()=>{close();exportData()};el.querySelector('#imp').onclick=()=>{close();$('#fileIn').click()};
   el.querySelector('#rst').onclick=()=>{close();confirmBox('Alle Räume und Möbel zurücksetzen?','Zurücksetzen',()=>{S=defaultState();UI.sel=null;commit();renderAll();fit()})}}
 async function exportData(){const json=JSON.stringify(S,null,1),name=`raumplaner-${new Date().toISOString().slice(0,10)}.json`;
   let dl=null;try{dl=window.claude?.use?await window.claude.use('downloads'):null}catch(e){}
   if(dl){try{await dl.save({filename:name,data:json});return}catch(e){if(e?.code==='declined')return}}
+  try{const file=new File([json],name,{type:'application/json'});
+    if(navigator.canShare?.({files:[file]})){await navigator.share({files:[file],title:'Raumplaner-Sicherung'});return}}
+  catch(e){if(e?.name==='AbortError')return}
   const url=URL.createObjectURL(new Blob([json],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000)}
 $('#fileIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const s=JSON.parse(rd.result);if(!valid(s))throw 0;delete s.updatedAt;S=s;S.settings=S.settings||{grid:5,snap:true};UI.sel=null;commit();renderAll();fit()}
-  catch(_){modal(`<h2>Import nicht möglich</h2><p class="hint">Die Datei ist kein Raumplaner-Export. Wähle eine .json-Datei, die du hier exportiert hast.</p>`)}};rd.readAsText(f);e.target.value=''});
+  catch(_){modal(`<h2>Wiederherstellen nicht möglich</h2><p class="hint">Diese Datei ist keine Raumplaner-Sicherung. Wähle eine Datei, die mit „raumplaner-“ beginnt.</p>`)}};rd.readAsText(f);e.target.value=''});
 
 /* ---------- pointer ---------- */
 const ptrs=new Map();let drag=null,pinch=null;
